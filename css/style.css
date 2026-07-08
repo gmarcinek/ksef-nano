@@ -1,0 +1,488 @@
+:root {
+    --paper: #EDEFE9;
+    --strip: #F7F8F4;
+    --ink: #1B2A24;
+    --line: #93A396;
+    --line-soft: #C9D2C8;
+    --stamp: #B5342C;
+    --ok: #2E6B4F;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Archivo', sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0
+}
+
+html,
+body {
+    height: 100%
+}
+
+body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh
+}
+
+/* ── nagłówek ── */
+header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 18px 28px 0;
+    border-bottom: 2px solid var(--ink);
+    flex-wrap: wrap
+}
+
+header h1 {
+    font-size: clamp(18px, 2vw, 24px);
+    font-weight: 800;
+    letter-spacing: .02em;
+    font-stretch: 80%;
+    text-transform: uppercase
+}
+
+header h1 span {
+    color: var(--stamp)
+}
+
+.header-meta {
+    display: flex;
+    gap: 26px;
+    flex-wrap: wrap;
+    align-items: baseline
+}
+
+.hm {
+    display: flex;
+    flex-direction: column;
+    gap: 2px
+}
+
+.hm label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    opacity: .65;
+    font-weight: 600
+}
+
+.hm input {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--ink);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    padding: 2px 0;
+    width: 118px
+}
+
+.hm input:focus {
+    outline: none;
+    border-bottom: 2px solid var(--stamp)
+}
+
+.hm input.num {
+    width: 64px
+}
+
+.hm input.rate {
+    width: 82px
+}
+
+nav {
+    display: flex;
+    gap: 0;
+    width: 100%;
+    margin-top: 10px
+}
+
+nav button {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--ink);
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 10px 18px;
+    cursor: pointer;
+    opacity: .55
+}
+
+nav button.active {
+    opacity: 1;
+    border-bottom-color: var(--stamp)
+}
+
+nav button:hover {
+    opacity: 1
+}
+
+/* ── kolumny ── */
+main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0
+}
+
+.col {
+    border-right: 1px dashed var(--line);
+    padding: 22px 24px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--strip);
+    position: relative
+}
+
+.col:last-child {
+    border-right: none
+}
+
+.col::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background-image: radial-gradient(circle at 6px 0, var(--paper) 4px, transparent 4px);
+    background-size: 14px 6px;
+    background-repeat: repeat-x
+}
+
+.tag {
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    border: 1px solid var(--ink);
+    padding: 3px 8px
+}
+
+.col h2 {
+    font-size: 20px;
+    font-weight: 800;
+    font-stretch: 78%;
+    line-height: 1.05
+}
+
+.entity {
+    font-size: 11px;
+    line-height: 1.5;
+    opacity: .72;
+    border-left: 2px solid var(--line-soft);
+    padding-left: 10px;
+    font-family: var(--mono)
+}
+
+.fv-nr {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--stamp);
+    letter-spacing: .03em;
+    min-height: 18px
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px
+}
+
+.field label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    font-weight: 600;
+    opacity: .65
+}
+
+.field input {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    background: transparent;
+    color: var(--ink);
+    border: none;
+    border-bottom: 1.5px solid var(--line);
+    padding: 4px 0;
+    width: 100%
+}
+
+.field input.small {
+    font-size: 15px
+}
+
+.field input:focus {
+    outline: none;
+    border-bottom: 2px solid var(--stamp)
+}
+
+.field input:disabled {
+    opacity: .55;
+    border-bottom-style: dotted
+}
+
+.calc {
+    margin-top: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-soft)
+}
+
+.calc dt {
+    opacity: .6
+}
+
+.calc dd {
+    text-align: right;
+    font-weight: 500
+}
+
+.calc dd.brutto {
+    font-weight: 600;
+    font-size: 15px
+}
+
+.calc .zero {
+    opacity: .3
+}
+
+.btn-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px
+}
+
+.col button {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    border: none;
+    padding: 11px 0;
+    cursor: pointer;
+    transition: background .12s
+}
+
+.b-approve {
+    background: var(--ink);
+    color: var(--strip)
+}
+
+.b-approve:hover {
+    background: var(--stamp)
+}
+
+.b-approve.done {
+    background: var(--ok);
+    cursor: default
+}
+
+.b-dl {
+    background: transparent;
+    color: var(--ink);
+    border: 1.5px solid var(--ink) !important
+}
+
+.b-dl:hover:not(:disabled) {
+    background: var(--ink);
+    color: var(--strip)
+}
+
+button:disabled {
+    opacity: .35;
+    cursor: default !important
+}
+
+.b-approve:disabled {
+    background: var(--line-soft);
+    color: var(--ink)
+}
+
+/* ── rejestr ── */
+#view-register {
+    flex: 1;
+    padding: 22px 28px;
+    display: none
+}
+
+#view-register.show {
+    display: block
+}
+
+#view-issue.hide {
+    display: none
+}
+
+#view-register h2 {
+    font-size: 16px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 14px
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--strip)
+}
+
+th {
+    font-family: var(--sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    font-weight: 700;
+    text-align: left;
+    padding: 9px 10px;
+    border-bottom: 2px solid var(--ink)
+}
+
+th.r,
+td.r {
+    text-align: right
+}
+
+td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line-soft)
+}
+
+tr:hover td {
+    background: #EFF2EC
+}
+
+td .mini {
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid var(--line);
+    padding: 3px 8px;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-left: 6px
+}
+
+td .mini:hover {
+    border-color: var(--stamp);
+    color: var(--stamp)
+}
+
+tfoot td {
+    font-weight: 600;
+    border-top: 2px solid var(--ink);
+    border-bottom: none
+}
+
+.empty {
+    opacity: .5;
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 30px 0
+}
+
+/* ── pasek sumy ── */
+footer {
+    border-top: 2px solid var(--ink);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap
+}
+
+.totals {
+    font-family: var(--mono);
+    font-size: 14px;
+    display: flex;
+    gap: 34px;
+    flex-wrap: wrap
+}
+
+.totals b {
+    font-weight: 600
+}
+
+.totals .lbl {
+    font-family: var(--sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    opacity: .6;
+    display: block;
+    font-weight: 600
+}
+
+#dl-all {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    background: var(--stamp);
+    color: #fff;
+    border: none;
+    padding: 13px 26px;
+    cursor: pointer;
+    transform: rotate(-.6deg);
+    box-shadow: 2px 2px 0 var(--ink)
+}
+
+#dl-all:hover:not(:disabled) {
+    transform: rotate(0)
+}
+
+#dl-all:disabled {
+    background: var(--line-soft);
+    box-shadow: none;
+    transform: none
+}
+
+@media (max-width:980px) {
+    main {
+        grid-template-columns: 1fr 1fr
+    }
+
+    .col {
+        border-bottom: 1px dashed var(--line)
+    }
+}
+
+@media (max-width:560px) {
+    main {
+        grid-template-columns: 1fr
+    }
+}
+
+@media (prefers-reduced-motion:reduce) {
+    * {
+        transition: none !important
+    }
+}
