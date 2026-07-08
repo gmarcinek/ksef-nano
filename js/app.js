@@ -14,6 +14,7 @@ const elSale = document.getElementById("g-sale");
 const elIssue = document.getElementById("g-issue");
 const elDue = document.getElementById("g-due");
 const elRate = document.getElementById("g-rate");
+const elLine = document.getElementById("g-line");
 const elPrefix = document.getElementById("g-prefix");
 
 const tabIssue = document.getElementById("tab-issue");
@@ -38,12 +39,18 @@ const elImportRun = document.getElementById("ksef-import-run");
 const elImportFilesRun = document.getElementById("ksef-files-run");
 const elImportStatus = document.getElementById("ksef-import-status");
 const elImportResults = document.getElementById("ksef-import-results");
+const elRegisterPanelBody = document.getElementById("reg-preview-panel-body");
+const elRegisterDrawer = document.getElementById("reg-drawer");
+const elRegisterDrawerBody = document.getElementById("reg-drawer-body");
+const elRegisterDrawerBackdrop = document.getElementById("reg-drawer-backdrop");
+const elRegisterDrawerClose = document.getElementById("reg-drawer-close");
 
 const approved = {};
 const colsEl = document.getElementById("view-issue");
 
 let ksefAccessToken = null;
 const retryMetadataById = new Map();
+let selectedRegisterId = null;
 let numberingState = {
     prefix: "",
     existingNumbers: new Set(),
@@ -73,6 +80,129 @@ function sourceBadgeMarkup(source) {
         return '<span class="src-badge ksef">[KSEF API]</span>';
     }
     return "";
+}
+
+function isImportedSource(source) {
+    return source === "ksef" || source === "ksef-api" || source === "import-file";
+}
+
+function firstText(node, localName) {
+    const items = node.getElementsByTagNameNS("*", localName);
+    return items.length ? (items[0].textContent || "").trim() : "";
+}
+
+function firstChildElement(node, localName) {
+    const items = node.getElementsByTagNameNS("*", localName);
+    return items.length ? items[0] : null;
+}
+
+function xmlPreviewData(record) {
+    const doc = new DOMParser().parseFromString(record.xml || "", "application/xml");
+    const sellerNode = firstChildElement(doc, "Podmiot1");
+    const buyerNode = firstChildElement(doc, "Podmiot2");
+    const lineNode = firstChildElement(doc, "FaWiersz");
+    return {
+        sellerName: firstText(sellerNode || doc, "Nazwa"),
+        sellerNip: firstText(sellerNode || doc, "NIP"),
+        sellerAddr: firstText(sellerNode || doc, "AdresL1"),
+        buyerName: firstText(buyerNode || doc, "Nazwa") || record.company,
+        buyerNip: firstText(buyerNode || doc, "NIP") || record.nip,
+        buyerAddr: firstText(buyerNode || doc, "AdresL1") || BUYER_ADDR,
+        city: firstText(doc, "P_1M"),
+        lineName: firstText(lineNode || doc, "P_7") || "Prace dewelopera",
+        unit: firstText(lineNode || doc, "P_8A") || "godzina",
+        quantity: firstText(lineNode || doc, "P_8B") || (record.hoursCent ? (record.hoursCent / 100).toFixed(2) : "0.00"),
+        rate: firstText(lineNode || doc, "P_9A") || (record.rateGr ? (record.rateGr / 100).toFixed(2) : "0.00"),
+        paymentAccount: firstText(doc, "NrRB"),
+        sourceLabel: sourceBadgeMarkup(record.source)
+    };
+}
+
+function registerPreviewMarkup(record) {
+    const preview = xmlPreviewData(record);
+    const sourceLabel = preview.sourceLabel || "";
+    const ksefLine = record.ksefNumber ? `<li><strong>KSeF:</strong> ${record.ksefNumber}</li>` : "";
+    return `
+        <article class="invoice-shell">
+            <header class="invoice-head">
+                <div>
+                    <div class="invoice-mark">KSEF</div>
+                    <div class="invoice-subhead">Podgląd faktury z XML</div>
+                    <div class="invoice-badge-row">${sourceLabel}</div>
+                </div>
+                <div>
+                    <h3>${record.nr}</h3>
+                    <p class="invoice-subhead">${record.issueDate} · sprzedaż ${record.saleDate}</p>
+                </div>
+            </header>
+            <div class="invoice-grid">
+                <section class="invoice-party">
+                    <h4>Sprzedawca</h4>
+                    <strong>${preview.sellerName || "Brak danych"}</strong>
+                    <p>NIP ${preview.sellerNip || "—"}</p>
+                    <p>${preview.sellerAddr || "—"}</p>
+                    <p>${preview.city || "—"}</p>
+                </section>
+                <section class="invoice-party">
+                    <h4>Nabywca</h4>
+                    <strong>${preview.buyerName || record.company}</strong>
+                    <p>NIP ${preview.buyerNip || record.nip || "—"}</p>
+                    <p>${preview.buyerAddr || BUYER_ADDR}</p>
+                </section>
+            </div>
+            <section class="invoice-line">
+                <h4>Pozycja</h4>
+                <table>
+                    <thead>
+                        <tr><th>Usługa</th><th class="r">Ilość</th><th class="r">Stawka</th><th class="r">Netto</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>${preview.lineName}</td>
+                            <td class="r">${preview.quantity} ${preview.unit}</td>
+                            <td class="r">${preview.rate} zł</td>
+                            <td class="r">${fmtPL(record.netto)} zł</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+            <div class="invoice-grid">
+                <section class="invoice-summary">
+                    <h4>Podsumowanie</h4>
+                    <dl>
+                        <dt>Netto</dt><dd>${fmtPL(record.netto)} zł</dd>
+                        <dt>VAT</dt><dd>${fmtPL(record.vat)} zł</dd>
+                        <dt>Brutto</dt><dd>${fmtPL(record.brutto)} zł</dd>
+                        <dt>Termin</dt><dd>${record.dueDate || "—"}</dd>
+                    </dl>
+                </section>
+                <section class="invoice-meta">
+                    <h4>Metadane</h4>
+                    <ul>
+                        <li><strong>Zamówienie:</strong> ${record.zam || "—"}</li>
+                        <li><strong>Spółka:</strong> ${record.tag || "—"}</li>
+                        <li><strong>Rachunek:</strong> ${preview.paymentAccount || "—"}</li>
+                        ${ksefLine}
+                    </ul>
+                </section>
+            </div>
+        </article>`;
+}
+
+function closeRegisterDrawer() {
+    elRegisterDrawer.hidden = true;
+    elRegisterDrawerBackdrop.hidden = true;
+}
+
+function openRegisterPreview(record) {
+    selectedRegisterId = record.id;
+    const markup = registerPreviewMarkup(record);
+    elRegisterPanelBody.innerHTML = markup;
+    elRegisterDrawerBody.innerHTML = markup;
+    if (window.innerWidth <= 1440) {
+        elRegisterDrawer.hidden = false;
+        elRegisterDrawerBackdrop.hidden = false;
+    }
 }
 
 function parseNumberSuffix(nr, prefix) {
@@ -203,10 +333,16 @@ if (savedRate) {
     elRate.value = savedRate;
 }
 
+elLine.value = LS.get("lineName", "Prace dewelopera");
+
 elRate.addEventListener("input", () => {
     if (elRate.value) {
         LS.set("rate", elRate.value);
     }
+});
+
+elLine.addEventListener("input", () => {
+    LS.set("lineName", elLine.value.trim() || "Prace dewelopera");
 });
 
 elPrefix.value = LS.get("prefix", defaultPrefixFor(lastPrev));
@@ -462,6 +598,7 @@ async function approve(company) {
         id: nr,
         nr,
         source: "local",
+        lineName: elLine.value.trim() || "Prace dewelopera",
         key: company.key,
         tag: company.tag,
         company: company.name,
@@ -571,6 +708,9 @@ async function renderRegister() {
     list = list.map(normalizeRecord);
 
     if (!list.length) {
+        selectedRegisterId = null;
+        closeRegisterDrawer();
+        elRegisterPanelBody.innerHTML = '<p class="empty">Kliknij fakturę z listy, aby zobaczyć podgląd.</p>';
         body.innerHTML = '<p class="empty">Brak zatwierdzonych faktur. Wystaw pierwszą w zakładce Wystawianie.</p>';
         return;
     }
@@ -580,13 +720,17 @@ async function renderRegister() {
     let th = 0;
     let tn = 0;
     let tb = 0;
+    if (!selectedRegisterId || !list.some(record => record.id === selectedRegisterId)) {
+        selectedRegisterId = list[0].id;
+    }
     const rows = list.map(record => {
         th += record.hoursCent;
         tn += record.netto;
         tb += record.brutto;
         const sourceBadge = sourceBadgeMarkup(record.source);
         const meta = record.ksefNumber ? `<span class="ksef-meta">KSeF: ${record.ksefNumber}</span>` : "";
-        return `<tr>
+        const activeClass = record.id === selectedRegisterId ? " active" : "";
+        return `<tr class="register-row${activeClass}" data-id="${record.id}">
             <td><b>${record.nr}</b>${sourceBadge}${meta}</td>
             <td>${record.tag}</td>
             <td>${record.issueDate}</td>
@@ -608,6 +752,22 @@ async function renderRegister() {
         <tfoot><tr><td colspan="5">RAZEM (${list.length} FV)</td><td class="r">${fmtPL(th)}</td><td class="r">${fmtPL(tn)}</td><td class="r">${fmtPL(tb)}</td><td></td></tr></tfoot>
     </table>`;
 
+    const selectedRecord = list.find(record => record.id === selectedRegisterId) || list[0];
+    if (selectedRecord) {
+        elRegisterPanelBody.innerHTML = registerPreviewMarkup(selectedRecord);
+    }
+
+    body.querySelectorAll(".register-row").forEach(row => row.addEventListener("click", event => {
+        if (event.target.closest("button")) {
+            return;
+        }
+        const record = list.find(item => item.id === row.dataset.id);
+        if (record) {
+            openRegisterPreview(record);
+            renderRegister();
+        }
+    }));
+
     body.querySelectorAll(".mini").forEach(button => button.addEventListener("click", async event => {
         const id = event.target.dataset.id;
         const record = list.find(item => item.id === id);
@@ -624,7 +784,7 @@ async function renderRegister() {
             return;
         }
 
-        await idbDel(record.id, record.source === "ksef" ? "imports" : "invoices");
+        await idbDel(record.id, isImportedSource(record.source) ? "imports" : "invoices");
         if (approved[record.key] && approved[record.key].id === record.id) {
             delete approved[record.key];
         }
@@ -1022,6 +1182,8 @@ COMPANIES.forEach(company => {
 
 elImportRun.addEventListener("click", runKsefImport);
 elImportFilesRun.addEventListener("click", runFileImport);
+elRegisterDrawerBackdrop.addEventListener("click", closeRegisterDrawer);
+elRegisterDrawerClose.addEventListener("click", closeRegisterDrawer);
 
 document.getElementById("dl-all").addEventListener("click", () => {
     Object.values(approved).forEach((record, index) => {

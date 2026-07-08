@@ -21,6 +21,8 @@
                     placeholder="FV/2026/" class="prefix"></div>
             <div class="hm"><label for="g-rate">stawka zł/h</label><input id="g-rate" class="rate" type="number"
                     step="0.01" placeholder="—"></div>
+            <div class="hm"><label for="g-line">P_7 / usługa</label><input id="g-line" type="text"
+                    value="Prace dewelopera" placeholder="Prace dewelopera"></div>
             <div class="hm"><label for="g-sale">data sprzedaży</label><input id="g-sale" type="date"></div>
             <div class="hm"><label for="g-issue">data wystawienia</label><input id="g-issue" type="date"></div>
             <div class="hm"><label for="g-due">termin płatności</label><input id="g-due" type="date"></div>
@@ -37,7 +39,20 @@
 
     <section id="view-register">
         <h2>Rejestr zatwierdzonych faktur</h2>
-        <div id="reg-body"></div>
+        <div class="register-layout">
+            <div id="reg-body"></div>
+            <aside id="reg-preview-panel" class="register-preview-panel">
+                <div id="reg-preview-panel-body" class="register-preview-body">
+                    <p class="empty">Kliknij fakturę z listy, aby zobaczyć podgląd.</p>
+                </div>
+            </aside>
+        </div>
+        <div id="reg-drawer" class="register-drawer" hidden>
+            <button id="reg-drawer-close" class="register-drawer-close" type="button"
+                aria-label="Zamknij podgląd">Zamknij</button>
+            <div id="reg-drawer-body" class="register-preview-body"></div>
+        </div>
+        <div id="reg-drawer-backdrop" class="register-drawer-backdrop" hidden></div>
     </section>
 
     <section id="view-import">
@@ -126,7 +141,7 @@
         <button id="dl-all" disabled>Pobierz zatwierdzone XML</button>
     </footer>
 
-    <script type="module" src="js/app.js?v=20260709f"></script>
+    <script type="module" src="js/app.js?v=20260709h"></script>
 </body>
 
 </html>

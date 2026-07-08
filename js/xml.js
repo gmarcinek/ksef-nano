@@ -6,6 +6,7 @@ export function esc(s) {
 }
 
 export function buildXml(rec, seller) {
+    const lineName = esc(rec.lineName || "Prace dewelopera");
     const ts = new Date().toISOString().replace(/\.\d{3}Z$/, ".00000Z");
     return `<?xml version="1.0" encoding="utf-8"?>`
         + `<Faktura xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/">`
@@ -42,7 +43,7 @@ export function buildXml(rec, seller) {
         +   `<RodzajFaktury>VAT</RodzajFaktury>`
         +   `<FaWiersz>`
         +     `<NrWierszaFa>1</NrWierszaFa>`
-        +     `<P_7>Prace dewelopera</P_7>`
+        +     `<P_7>${lineName}</P_7>`
         +     `<P_8A>godzina</P_8A>`
         +     `<P_8B>${(rec.hoursCent / 100).toFixed(2)}</P_8B>`
         +     `<P_9A>${(rec.rateGr / 100).toFixed(2)}</P_9A>`
