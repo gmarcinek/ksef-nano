@@ -331,11 +331,29 @@ button:disabled {
     display: block
 }
 
+#view-import {
+    flex: 1;
+    padding: 22px 28px;
+    display: none
+}
+
+#view-import.show {
+    display: block
+}
+
 #view-issue.hide {
     display: none
 }
 
 #view-register h2 {
+    font-size: 16px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 14px
+}
+
+#view-import h2 {
     font-size: 16px;
     font-weight: 800;
     text-transform: uppercase;
@@ -407,6 +425,29 @@ tfoot td {
     padding: 30px 0
 }
 
+.src-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 6px;
+    border: 1px solid var(--line);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    font-family: var(--sans)
+}
+
+.src-badge.ksef {
+    border-color: var(--stamp);
+    color: var(--stamp)
+}
+
+.ksef-meta {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    opacity: .72
+}
+
 /* ── pasek sumy ── */
 footer {
     border-top: 2px solid var(--ink);
@@ -465,6 +506,259 @@ footer {
     transform: none
 }
 
+/* ── ustawienia ── */
+#view-settings {
+    flex: 1;
+    padding: 22px 28px;
+    display: none
+}
+
+#view-settings.show {
+    display: block
+}
+
+#view-settings h2 {
+    font-size: 16px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 22px
+}
+
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 480px
+}
+
+.settings-form .field input {
+    font-size: 16px
+}
+
+.settings-warn {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--stamp);
+    border: 1.5px solid var(--stamp);
+    padding: 8px 12px;
+    font-family: var(--sans);
+    letter-spacing: .03em
+}
+
+.settings-group-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    opacity: .55;
+    margin-bottom: -6px
+}
+
+.settings-form small {
+    font-size: 10px;
+    opacity: .6;
+    font-weight: 400
+}
+
+.import-layout {
+    display: grid;
+    grid-template-columns: minmax(420px, 560px) minmax(360px, 1fr);
+    gap: 24px;
+    align-items: start
+}
+
+.import-form,
+.import-status-wrap {
+    background: var(--strip);
+    border: 1px solid var(--line-soft);
+    padding: 18px
+}
+
+.import-form {
+    max-width: 560px
+}
+
+.import-form > * + * {
+    margin-top: 1rem
+}
+
+.import-form .field {
+    gap: 6px
+}
+
+.import-form .field input {
+    font-size: 16px;
+    min-height: 42px;
+    padding: 7px 0 6px
+}
+
+.import-form #ksef-token {
+    font-size: 14px;
+    letter-spacing: .01em
+}
+
+.import-form .field input[type="date"] {
+    font-size: 15px
+}
+
+.import-range {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px
+}
+
+.import-actions {
+    margin-top: 2rem;
+}
+
+.import-actions button {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    border: none;
+    background: var(--ink);
+    color: var(--strip);
+    padding: 1rem 16px;
+    width: 100%;
+    cursor: pointer
+}
+
+.import-actions button:hover:not(:disabled) {
+    background: var(--stamp)
+}
+
+.import-note {
+    margin-top: 1rem;
+    font-size: 12px;
+    line-height: 1.5;
+    opacity: .72
+}
+
+.import-status {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 12px 14px;
+    border: 1px solid var(--line-soft);
+    background: #fff
+}
+
+.import-status.busy {
+    border-color: var(--ink)
+}
+
+.import-status.ok {
+    border-color: var(--ok);
+    color: var(--ok)
+}
+
+.import-status.fail {
+    border-color: var(--stamp);
+    color: var(--stamp)
+}
+
+.import-results {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: var(--mono)
+}
+
+.import-results.empty {
+    padding: 12px 0
+}
+
+.import-result {
+    border: 1px solid var(--line-soft);
+    background: #fff;
+    padding: 10px 12px
+}
+
+.import-result.ok {
+    border-color: rgba(46, 107, 79, .35)
+}
+
+.import-result.fail {
+    border-color: rgba(181, 52, 44, .35)
+}
+
+.import-result-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: baseline
+}
+
+.import-result-state {
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase
+}
+
+.import-result.ok .import-result-state {
+    color: var(--ok)
+}
+
+.import-result.fail .import-result-state {
+    color: var(--stamp)
+}
+
+.import-result-meta,
+.import-result-msg {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    opacity: .8
+}
+
+nav button .badge {
+    display: inline-block;
+    background: var(--stamp);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    border-radius: 2px;
+    padding: 1px 5px;
+    margin-left: 5px;
+    vertical-align: middle;
+    letter-spacing: .06em
+}
+
+.nr-preview {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ok);
+    padding: 2px 0;
+    letter-spacing: .03em;
+    display: block
+}
+
+.period-status {
+    font-size: 11px;
+    font-family: var(--mono);
+    min-height: 16px;
+    letter-spacing: .02em
+}
+
+.period-status.issued {
+    color: var(--ok);
+    font-weight: 600
+}
+
+.period-status.missing {
+    color: var(--stamp);
+    font-weight: 600
+}
+
+.hm input.prefix {
+    width: 140px
+}
+
 @media (max-width:980px) {
     main {
         grid-template-columns: 1fr 1fr
@@ -473,10 +767,18 @@ footer {
     .col {
         border-bottom: 1px dashed var(--line)
     }
+
+    .import-layout {
+        grid-template-columns: 1fr
+    }
 }
 
 @media (max-width:560px) {
     main {
+        grid-template-columns: 1fr
+    }
+
+    .import-range {
         grid-template-columns: 1fr
     }
 }

@@ -12,10 +12,3 @@ export function calc(hoursCent, rateGr) {
 
 export const fmtPL  = gr => (gr / 100).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const fmtDot = gr => (gr / 100).toFixed(2);
-
-// ═══ data lokalna jako ISO string ═══════════════════════════
-export function isoLocal(d) {
-    return d.getFullYear() + "-"
-        + String(d.getMonth() + 1).padStart(2, "0") + "-"
-        + String(d.getDate()).padStart(2, "0");
-}

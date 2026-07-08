@@ -7,14 +7,22 @@ export const LS = {
 
 // ═══ persystencja: IndexedDB (faktury) ══════════════════════
 let db = null;
+const DB_NAME = "ksef";
+const DB_VERSION = 2;
+const LOCAL_STORE = "invoices";
+const IMPORT_STORE = "imports";
 
 export function openDb() {
     return new Promise((res, rej) => {
-        const req = indexedDB.open("ksef", 1);
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = e => {
             const d = e.target.result;
-            if (!d.objectStoreNames.contains("invoices")) {
-                const st = d.createObjectStore("invoices", { keyPath: "nr" });
+            if (!d.objectStoreNames.contains(LOCAL_STORE)) {
+                const st = d.createObjectStore(LOCAL_STORE, { keyPath: "nr" });
+                st.createIndex("byCreated", "createdAt");
+            }
+            if (!d.objectStoreNames.contains(IMPORT_STORE)) {
+                const st = d.createObjectStore(IMPORT_STORE, { keyPath: "id" });
                 st.createIndex("byCreated", "createdAt");
             }
         };
@@ -25,26 +33,47 @@ export function openDb() {
 
 export function idbPut(rec) {
     return new Promise((res, rej) => {
-        const tx = db.transaction("invoices", "readwrite");
-        tx.objectStore("invoices").put(rec);
+        const tx = db.transaction(LOCAL_STORE, "readwrite");
+        tx.objectStore(LOCAL_STORE).put(rec);
         tx.oncomplete = res;
         tx.onerror    = e => rej(e.target.error);
     });
 }
 
-export function idbAll() {
+export function idbPutImport(rec) {
     return new Promise((res, rej) => {
-        const tx  = db.transaction("invoices", "readonly");
-        const req = tx.objectStore("invoices").getAll();
-        req.onsuccess = () => res(req.result || []);
-        req.onerror   = e => rej(e.target.error);
+        const tx = db.transaction(IMPORT_STORE, "readwrite");
+        tx.objectStore(IMPORT_STORE).put(rec);
+        tx.oncomplete = res;
+        tx.onerror    = e => rej(e.target.error);
     });
 }
 
-export function idbDel(nr) {
+function idbAllFromStore(storeName) {
     return new Promise((res, rej) => {
-        const tx = db.transaction("invoices", "readwrite");
-        tx.objectStore("invoices").delete(nr);
+        if (!db.objectStoreNames.contains(storeName)) {
+            res([]);
+            return;
+        }
+        const tx = db.transaction(storeName, "readonly");
+        const req = tx.objectStore(storeName).getAll();
+        req.onsuccess = () => res(req.result || []);
+        req.onerror = e => rej(e.target.error);
+    });
+}
+
+export function idbAll() {
+    return Promise.all([idbAllFromStore(LOCAL_STORE), idbAllFromStore(IMPORT_STORE)]).then(([local, imported]) => local.concat(imported));
+}
+
+export function idbAllLocal() {
+    return idbAllFromStore(LOCAL_STORE);
+}
+
+export function idbDel(id, storeName = LOCAL_STORE) {
+    return new Promise((res, rej) => {
+        const tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).delete(id);
         tx.oncomplete = res;
         tx.onerror    = e => rej(e.target.error);
     });

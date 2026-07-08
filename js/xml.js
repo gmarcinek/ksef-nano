@@ -1,11 +1,11 @@
-import { SELLER, BUYER_ADDR, NRB } from './data.js';
+import { BUYER_ADDR } from './data.js';
 import { fmtDot } from './calc.js';
 
 export function esc(s) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-export function buildXml(rec) {
+export function buildXml(rec, seller) {
     const ts = new Date().toISOString().replace(/\.\d{3}Z$/, ".00000Z");
     return `<?xml version="1.0" encoding="utf-8"?>`
         + `<Faktura xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://crd.gov.pl/wzor/2025/06/25/13775/">`
@@ -16,8 +16,8 @@ export function buildXml(rec) {
         +   `<SystemInfo>Aplikacja Podatnika KSeF</SystemInfo>`
         + `</Naglowek>`
         + `<Podmiot1>`
-        +   `<DaneIdentyfikacyjne><NIP>${SELLER.nip}</NIP><Nazwa>${esc(SELLER.name)}</Nazwa></DaneIdentyfikacyjne>`
-        +   `<Adres><KodKraju>PL</KodKraju><AdresL1>${esc(SELLER.addr)}</AdresL1></Adres>`
+        +   `<DaneIdentyfikacyjne><NIP>${seller.nip}</NIP><Nazwa>${esc(seller.name)}</Nazwa></DaneIdentyfikacyjne>`
+        +   `<Adres><KodKraju>PL</KodKraju><AdresL1>${esc(seller.addr)}</AdresL1></Adres>`
         + `</Podmiot1>`
         + `<Podmiot2>`
         +   `<DaneIdentyfikacyjne><NIP>${rec.nip}</NIP><Nazwa>${esc(rec.company)}</Nazwa></DaneIdentyfikacyjne>`
@@ -26,7 +26,7 @@ export function buildXml(rec) {
         + `</Podmiot2>`
         + `<Fa>`
         +   `<KodWaluty>PLN</KodWaluty>`
-        +   `<P_1>${rec.issueDate}</P_1><P_1M>Warszawa</P_1M>`
+        +   `<P_1>${rec.issueDate}</P_1><P_1M>${esc(seller.city)}</P_1M>`
         +   `<P_2>${rec.nr}</P_2>`
         +   `<P_6>${rec.saleDate}</P_6>`
         +   `<P_13_1>${fmtDot(rec.netto)}</P_13_1>`
@@ -52,7 +52,7 @@ export function buildXml(rec) {
         +   `<Platnosc>`
         +     `<TerminPlatnosci><Termin>${rec.dueDate}</Termin></TerminPlatnosci>`
         +     `<FormaPlatnosci>6</FormaPlatnosci>`
-        +     `<RachunekBankowy><NrRB>${NRB}</NrRB></RachunekBankowy>`
+        +     `<RachunekBankowy><NrRB>${seller.nrb}</NrRB></RachunekBankowy>`
         +   `</Platnosc>`
         +   `<WarunkiTransakcji>`
         +     `<Zamowienia><NrZamowienia>${rec.zam}</NrZamowienia></Zamowienia>`
@@ -72,4 +72,11 @@ export function download(name, content) {
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
-export const fname = rec => `Wersja_robocza_${rec.nr.replace("/", "_")}_NN_${rec.key}.xml`;
+export const fname = rec => {
+    const safeNr = String(rec.nr || rec.ksefNumber || "faktura").replace(/\//g, "_").replace(/\s+/g, "_");
+    if (rec.source === "ksef") {
+        const safeKsef = String(rec.ksefNumber || "brak-numeru-ksef").replace(/\//g, "_");
+        return `Import_KSeF_${safeNr}_${safeKsef}.xml`;
+    }
+    return `Wersja_robocza_${safeNr}_NN_${rec.key}.xml`;
+};
