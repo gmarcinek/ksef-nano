@@ -3,7 +3,7 @@ import { LS, openDb, idbPut, idbPutImport, idbAll, idbAllLocal, idbDel } from ".
 import { calc, fmtPL } from "./calc.js";
 import { buildXml, download, fname } from "./xml.js";
 import { addDays, formatPeriodLabel, lastDayPrevMonth, toIsoDate, today } from "./dayjs.js";
-import { importIssuedInvoices } from "./ksef.js?v=20260708c";
+import { importIssuedInvoices } from "./ksef.js?v=20260708e";
 
 const currentDate = today();
 const lastPrev = lastDayPrevMonth(currentDate);
@@ -588,6 +588,9 @@ async function runKsefImport() {
         renderImportResults(statuses);
         if (failedCount) {
             setImportStatus(`Import zakończony częściowo: ${importedCount} OK, ${failedCount} błędów.`, importedCount ? "ok" : "fail");
+        } else if (!result.items.length) {
+            setImportStatus("KSeF nie zwrócił żadnej faktury dla wybranego zakresu dat.", "");
+            renderImportResults([], "Brak faktur w KSeF dla tego NIP i zakresu dat. Sprawdź zakres oraz czy faktury zostały faktycznie wysłane do KSeF (wersje robocze nie są widoczne).");
         } else {
             setImportStatus(`Import zakończony sukcesem: ${importedCount} faktur.`, "ok");
         }
@@ -597,10 +600,19 @@ async function runKsefImport() {
         refresh();
         alert(failedCount ? `Import zakończony częściowo. Sukces: ${importedCount}, błędy: ${failedCount}.` : `Import zakończony sukcesem. Zaimportowano ${importedCount} faktur.`);
     } catch (error) {
-        setImportStatus(`Import nieudany: ${error.message || error}`, "fail");
-        elImportResults.className = "import-results empty";
-        elImportResults.textContent = "Nie udało się pobrać danych z KSeF dla tej próby.";
-        alert(`Import z KSeF nie powiódł się: ${error.message || error}`);
+        const detail = error?.message || String(error);
+        console.error("Import KSeF nie powiódł się:", error);
+        setImportStatus(`Import nieudany: ${detail}`, "fail");
+        elImportResults.className = "import-results";
+        elImportResults.innerHTML = `
+            <div class="import-result fail">
+                <div class="import-result-head">
+                    <strong>Błąd importu z KSeF</strong>
+                    <span class="import-result-state">nieudane</span>
+                </div>
+                <div class="import-result-msg">${detail}</div>
+            </div>`;
+        alert(`Import z KSeF nie powiódł się: ${detail}`);
     } finally {
         elImportRun.disabled = false;
     }

@@ -146,7 +146,7 @@ async function ksefFetch(path, options = {}) {
             throw new Error(missingProxyMessage());
         }
         const message = extractErrorMessage(payload, text || `HTTP ${response.status}`);
-        throw new Error(message);
+        throw new Error(`[HTTP ${response.status} ${path}] ${message}`);
     }
 
     if (responseType === "text") {
@@ -195,16 +195,19 @@ async function authenticateWithToken(token, contextNip, onProgress) {
     }
 
     let authStatus = null;
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    const maxAttempts = 15;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         authStatus = await ksefFetch(`/auth/${init.referenceNumber}`, { bearer: authToken });
-        if (authStatus?.status?.code === 200) {
+        const code = authStatus?.status?.code;
+        if (code === 200) {
             break;
         }
-        if (authStatus?.status?.code !== 100) {
-            throw new Error(extractErrorMessage(authStatus.status, "Uwierzytelnianie KSeF zakończyło się błędem."));
+        if (code !== 100) {
+            const detail = extractErrorMessage(authStatus.status, authStatus?.status?.description || "Uwierzytelnianie KSeF zakończyło się błędem.");
+            throw new Error(`Uwierzytelnianie KSeF nieudane (kod ${code}): ${detail}`);
         }
-        onProgress?.(`KSeF uwierzytelnia token... próba ${attempt + 1}/8`);
-        await wait(700);
+        onProgress?.(`KSeF uwierzytelnia token... próba ${attempt + 1}/${maxAttempts}`);
+        await wait(800);
     }
 
     if (authStatus?.status?.code !== 200) {
