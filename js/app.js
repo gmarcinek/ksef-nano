@@ -64,7 +64,7 @@ async function initializeIssuePeriod() {
     let list = [];
 
     try {
-        list = await idbAllLocal();
+        list = await idbAll();
     } catch {
         return;
     }
@@ -406,7 +406,7 @@ async function checkPeriodStatus() {
     let list = [];
 
     try {
-        list = await idbAllLocal();
+        list = await idbAll();
     } catch {
         return;
     }
