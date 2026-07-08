@@ -3,7 +3,7 @@ import { LS, openDb, idbPut, idbPutImport, idbAll, idbAllLocal, idbDel } from ".
 import { calc, fmtPL } from "./calc.js";
 import { buildXml, download, fname } from "./xml.js";
 import { addDays, dayjs, formatPeriodLabel, lastDayPrevMonth, toIsoDate, today } from "./dayjs.js";
-import { importIssuedInvoices } from "./ksef.js?v=20260708f";
+import { importIssuedInvoices, fetchInvoiceRecord } from "./ksef.js?v=20260708h";
 
 const currentDate = today();
 const lastPrev = lastDayPrevMonth(currentDate);
@@ -39,6 +39,9 @@ const elImportResults = document.getElementById("ksef-import-results");
 
 const approved = {};
 const colsEl = document.getElementById("view-issue");
+
+let ksefAccessToken = null;
+const retryMetadataById = new Map();
 
 function normalizeRecord(record) {
     return {
@@ -503,8 +506,91 @@ function renderImportResults(items, emptyMessage = "Brak faktur dla wybranego za
             </div>
             <div class="import-result-meta">${item.meta}</div>
             <div class="import-result-msg">${item.message}</div>
+            ${item.canRetry ? `<button type="button" class="import-retry" data-retry-id="${item.id}">Ponów</button>` : ""}
         </div>
     `).join("");
+    wireRetryButtons();
+}
+
+function startRetryCountdown(button) {
+    let remaining = 60;
+    if (button._timer) {
+        clearInterval(button._timer);
+    }
+    button.disabled = true;
+    button.textContent = `Ponów za ${remaining} s`;
+    button._timer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+            clearInterval(button._timer);
+            button._timer = null;
+            button.disabled = false;
+            button.textContent = "Ponów";
+        } else {
+            button.textContent = `Ponów za ${remaining} s`;
+        }
+    }, 1000);
+}
+
+async function handleRetryClick(button) {
+    const id = button.dataset.retryId;
+    const metadata = retryMetadataById.get(id);
+    const row = button.closest(".import-result");
+    if (!metadata || !ksefAccessToken) {
+        if (row) {
+            const msgEl = row.querySelector(".import-result-msg");
+            if (msgEl) {
+                msgEl.textContent = "Sesja KSeF wygasła. Uruchom import ponownie.";
+            }
+        }
+        button.remove();
+        return;
+    }
+    button.disabled = true;
+    button.textContent = "Pobieram...";
+    try {
+        const record = await fetchInvoiceRecord(ksefAccessToken, metadata, COMPANIES);
+        await idbPutImport(record);
+        retryMetadataById.delete(id);
+        if (row) {
+            row.classList.remove("fail");
+            row.classList.add("ok");
+            const stateEl = row.querySelector(".import-result-state");
+            const msgEl = row.querySelector(".import-result-msg");
+            if (stateEl) {
+                stateEl.textContent = "zaimportowano";
+            }
+            if (msgEl) {
+                msgEl.textContent = `${record.company} · ${fmtPL(record.brutto)} zł brutto`;
+            }
+        }
+        button.remove();
+        await renderRegister();
+        await checkPeriodStatus();
+        refresh();
+    } catch (error) {
+        const msgEl = row?.querySelector(".import-result-msg");
+        if (msgEl) {
+            msgEl.textContent = error?.message || String(error);
+        }
+        if (error?.status === 429) {
+            startRetryCountdown(button);
+        } else {
+            button.disabled = false;
+            button.textContent = "Ponów";
+        }
+    }
+}
+
+function wireRetryButtons() {
+    elImportResults.querySelectorAll("button.import-retry").forEach(button => {
+        if (button.dataset.wired === "1") {
+            return;
+        }
+        button.dataset.wired = "1";
+        button.addEventListener("click", () => handleRetryClick(button));
+        startRetryCountdown(button);
+    });
 }
 
 async function runKsefImport() {
@@ -536,6 +622,8 @@ async function runKsefImport() {
     elImportRun.disabled = true;
     setImportStatus("Startuję import z KSeF...", "busy");
     renderImportResults([], "Trwa pobieranie statusów importu...");
+    ksefAccessToken = null;
+    retryMetadataById.clear();
 
     try {
         const existing = new Set((await idbAll()).map(record => normalizeRecord(record).id));
@@ -547,6 +635,7 @@ async function runKsefImport() {
             companies: COMPANIES,
             onProgress: text => setImportStatus(text, "busy")
         });
+        ksefAccessToken = result.accessToken || null;
 
         const statuses = [];
         let importedCount = 0;
@@ -556,12 +645,18 @@ async function runKsefImport() {
             const invoiceLabel = item.metadata?.invoiceNumber || item.metadata?.ksefNumber || item.record?.nr || "Faktura";
             if (!item.ok) {
                 failedCount += 1;
+                const canRetry = item.status === 429 && !!item.metadata?.ksefNumber;
+                if (canRetry) {
+                    retryMetadataById.set(item.metadata.ksefNumber, item.metadata);
+                }
                 statuses.push({
                     ok: false,
+                    id: item.metadata?.ksefNumber || "",
                     label: invoiceLabel,
                     state: "błąd",
                     meta: item.metadata?.ksefNumber || "Brak numeru KSeF",
-                    message: item.error
+                    message: item.error,
+                    canRetry
                 });
                 continue;
             }

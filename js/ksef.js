@@ -146,7 +146,11 @@ async function ksefFetch(path, options = {}) {
             throw new Error(missingProxyMessage());
         }
         const message = extractErrorMessage(payload, text || `HTTP ${response.status}`);
-        throw new Error(`[HTTP ${response.status} ${path}] ${message}`);
+        const error = new Error(`[HTTP ${response.status} ${path}] ${message}`);
+        error.status = response.status;
+        const retryAfter = Number.parseInt(response.headers.get("Retry-After") || "", 10);
+        error.retryAfterMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : null;
+        throw error;
     }
 
     if (responseType === "text") {
@@ -319,6 +323,28 @@ async function downloadInvoiceXml(accessToken, ksefNumber) {
     });
 }
 
+async function downloadInvoiceXmlWithRetry(accessToken, ksefNumber, label, onProgress) {
+    const maxRetries = 4;
+    for (let attempt = 0; ; attempt += 1) {
+        try {
+            return await downloadInvoiceXml(accessToken, ksefNumber);
+        } catch (error) {
+            if (error?.status === 429 && attempt < maxRetries) {
+                const delayMs = error.retryAfterMs || 1000 * (attempt + 1);
+                onProgress?.(`Limit żądań KSeF, ponawiam ${label} za ${Math.ceil(delayMs / 1000)} s...`);
+                await wait(delayMs);
+                continue;
+            }
+            throw error;
+        }
+    }
+}
+
+export async function fetchInvoiceRecord(accessToken, metadata, companies) {
+    const xml = await downloadInvoiceXml(accessToken, metadata.ksefNumber);
+    return parseImportedInvoice(xml, metadata, companies);
+}
+
 export async function importIssuedInvoices({ token, contextNip, from, to, companies, onProgress }) {
     const accessToken = await authenticateWithToken(token, contextNip, onProgress);
     onProgress?.("Pobieram metadane wystawionych faktur...");
@@ -329,19 +355,23 @@ export async function importIssuedInvoices({ token, contextNip, from, to, compan
     for (let index = 0; index < metadataItems.length; index += 1) {
         const metadata = metadataItems[index];
         const label = metadata.invoiceNumber || metadata.ksefNumber;
+        if (index > 0) {
+            await wait(500);
+        }
         onProgress?.(`Pobieram XML ${index + 1}/${metadataItems.length}: ${label}`);
         try {
-            const xml = await downloadInvoiceXml(accessToken, metadata.ksefNumber);
+            const xml = await downloadInvoiceXmlWithRetry(accessToken, metadata.ksefNumber, label, onProgress);
             const record = parseImportedInvoice(xml, metadata, companies);
             items.push({ ok: true, record, metadata });
         } catch (error) {
-            items.push({ ok: false, metadata, error: error.message || String(error) });
+            items.push({ ok: false, metadata, error: error.message || String(error), status: error?.status ?? null });
         }
     }
 
     return {
         hasMore: !!metadataResponse.hasMore,
         totalFetched: metadataItems.length,
-        items
+        items,
+        accessToken
     };
 }
