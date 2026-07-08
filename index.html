@@ -28,10 +28,10 @@
             <div class="hm"><label for="g-due">termin płatności</label><input id="g-due" type="date"></div>
         </div>
         <nav>
-            <button id="tab-issue" class="active">Wystawianie</button>
-            <button id="tab-register">Rejestr zatwierdzonych</button>
-            <button id="tab-import">Import z KSeF</button>
-            <button id="tab-settings">Ustawienia</button>
+            <button id="tab-issue" class="active" title="Wystawianie faktur">Wystaw</button>
+            <button id="tab-register" title="Rejestr zatwierdzonych faktur">Rejestr</button>
+            <button id="tab-import" title="Import z KSeF">KSeF</button>
+            <button id="tab-settings" title="Ustawienia aplikacji">Ustaw.</button>
         </nav>
     </header>
 
@@ -68,6 +68,18 @@
                 <p class="import-note">Token nie jest zapisywany w localStorage. Do kontekstu logowania używany jest NIP
                     sprzedawcy z ustawień. W deployu Netlify ruch do KSeF powinien iść przez rewrite `/ksef/*`; zwykły
                     lokalny serwer statyczny bez rewritów nie obsłuży importu.</p>
+                <div class="import-divider"></div>
+                <p class="settings-group-label">Import z plików XML lub ZIP</p>
+                <div class="field">
+                    <label for="ksef-files">Pliki wejściowe</label>
+                    <input id="ksef-files" class="file-picker" type="file"
+                        accept=".xml,.zip,application/xml,application/zip" multiple>
+                </div>
+                <div class="import-actions">
+                    <button id="ksef-files-run" type="button">Importuj z plików</button>
+                </div>
+                <p class="import-note">Obsługiwane są pojedyncze pliki XML oraz paczki ZIP zawierające XML-e faktur.
+                    Pliki nie są nigdzie wysyłane, przetwarzanie odbywa się w przeglądarce.</p>
             </div>
             <div class="import-status-wrap">
                 <div id="ksef-import-status" class="import-status">Brak uruchomionego importu.</div>
@@ -116,7 +128,7 @@
         <button id="dl-all" disabled>Pobierz zatwierdzone XML</button>
     </footer>
 
-    <script type="module" src="js/app.js?v=20260708h"></script>
+    <script type="module" src="js/app.js?v=20260709b"></script>
 </body>
 
 </html>

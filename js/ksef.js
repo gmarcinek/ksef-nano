@@ -239,6 +239,16 @@ function firstText(node, localName) {
     return items.length ? (items[0].textContent || "").trim() : "";
 }
 
+function firstTextAny(node, localNames) {
+    for (const localName of localNames) {
+        const value = firstText(node, localName);
+        if (value) {
+            return value;
+        }
+    }
+    return "";
+}
+
 function firstChildElement(node, localName) {
     const items = node.getElementsByTagNameNS("*", localName);
     return items.length ? items[0] : null;
@@ -249,7 +259,16 @@ function toGrosze(value) {
     return Number.isFinite(number) ? Math.round(number * 100) : 0;
 }
 
-function parseImportedInvoice(xml, metadata, companies) {
+function stableTextId(text) {
+    let hash = 2166136261;
+    for (let index = 0; index < text.length; index += 1) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return `xml-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function parseImportedInvoice(xml, metadata = {}, companies) {
     const doc = new DOMParser().parseFromString(xml, "application/xml");
     if (doc.getElementsByTagName("parsererror").length) {
         throw new Error("Nie udało się sparsować XML faktury z KSeF.");
@@ -260,7 +279,8 @@ function parseImportedInvoice(xml, metadata, companies) {
     const issueDate = firstText(doc, "P_1") || metadata.issueDate || "";
     const saleDate = firstText(doc, "P_6") || issueDate;
     const dueDate = firstText(doc, "Termin") || issueDate;
-    const invoiceNumber = firstText(doc, "P_2") || metadata.invoiceNumber || metadata.ksefNumber;
+    const ksefNumber = firstTextAny(doc, ["NumerKSeF", "NrKSeF", "KSeFReferenceNumber"]) || metadata.ksefNumber || "";
+    const invoiceNumber = firstText(doc, "P_2") || metadata.invoiceNumber || ksefNumber || "Brak numeru FV";
     const buyerNip = firstText(buyerNode || doc, "NIP") || metadata.buyer?.identifier?.value || "";
     const buyerName = firstText(buyerNode || doc, "Nazwa") || metadata.buyer?.name || "";
     const sellerNip = firstText(sellerNode || doc, "NIP") || metadata.seller?.nip || "";
@@ -268,13 +288,14 @@ function parseImportedInvoice(xml, metadata, companies) {
     const quantity = Number.parseFloat((firstText(doc, "P_8B") || "0").replace(",", "."));
     const companyMatch = companies.find(item => item.nip === buyerNip) || null;
     const importedAt = Date.now();
+    const invoiceHash = metadata.invoiceHash || stableTextId(xml);
 
     const netto = toGrosze(firstText(doc, "P_13_1") || metadata.netAmount);
     const vat = toGrosze(firstText(doc, "P_14_1") || metadata.vatAmount);
     const brutto = toGrosze(firstText(doc, "P_15") || metadata.grossAmount);
 
     return {
-        id: `ksef:${metadata.ksefNumber}`,
+        id: `ksef:${ksefNumber || invoiceHash}`,
         source: "ksef",
         nr: invoiceNumber,
         key: companyMatch?.key || "",
@@ -293,12 +314,16 @@ function parseImportedInvoice(xml, metadata, companies) {
         dueDate,
         createdAt: importedAt,
         importedAt,
-        ksefNumber: metadata.ksefNumber,
-        invoiceHash: metadata.invoiceHash || "",
+        ksefNumber,
+        invoiceHash,
         invoiceType: metadata.invoiceType || "",
         currency: metadata.currency || "PLN",
         xml
     };
+}
+
+export function parseImportedInvoiceXml(xml, companies, metadata = {}) {
+    return parseImportedInvoice(xml, metadata, companies);
 }
 
 async function queryIssuedMetadata(accessToken, from, to) {

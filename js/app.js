@@ -3,7 +3,8 @@ import { LS, openDb, idbPut, idbPutImport, idbAll, idbAllLocal, idbDel } from ".
 import { calc, fmtPL } from "./calc.js";
 import { buildXml, download, fname } from "./xml.js";
 import { addDays, dayjs, formatPeriodLabel, lastDayPrevMonth, toIsoDate, today } from "./dayjs.js";
-import { importIssuedInvoices, fetchInvoiceRecord } from "./ksef.js?v=20260708h";
+import { importIssuedInvoices, fetchInvoiceRecord } from "./ksef.js?v=20260709a";
+import { importInvoicesFromFiles } from "./file-import.js?v=20260709a";
 
 const currentDate = today();
 const lastPrev = lastDayPrevMonth(currentDate);
@@ -33,7 +34,9 @@ const elSellerCity = document.getElementById("s-seller-city");
 const elImportToken = document.getElementById("ksef-token");
 const elImportFrom = document.getElementById("ksef-from");
 const elImportTo = document.getElementById("ksef-to");
+const elImportFiles = document.getElementById("ksef-files");
 const elImportRun = document.getElementById("ksef-import-run");
+const elImportFilesRun = document.getElementById("ksef-files-run");
 const elImportStatus = document.getElementById("ksef-import-status");
 const elImportResults = document.getElementById("ksef-import-results");
 
@@ -49,6 +52,49 @@ function normalizeRecord(record) {
         source: record.source || "local",
         id: record.id || record.nr
     };
+}
+
+function defaultPrefixFor(dateValue) {
+    return `FV/${dayjs(dateValue).year()}/`;
+}
+
+async function initializeIssuePeriod() {
+    const defaultSaleDate = toIsoDate(lastPrev);
+    const preferredPeriod = defaultSaleDate.slice(0, 7);
+    let list = [];
+
+    try {
+        list = await idbAllLocal();
+    } catch {
+        return;
+    }
+
+    const records = list
+        .map(normalizeRecord)
+        .filter(record => record.saleDate);
+
+    if (!records.length) {
+        return;
+    }
+
+    const periodMatches = records.filter(record => record.saleDate.slice(0, 7) === preferredPeriod);
+    const scoped = periodMatches.length ? periodMatches : records;
+    const latestRecord = scoped.reduce((latest, record) => {
+        if (!latest) {
+            return record;
+        }
+        return record.saleDate > latest.saleDate ? record : latest;
+    }, null);
+
+    if (!latestRecord) {
+        return;
+    }
+
+    elSale.value = latestRecord.saleDate;
+    if (!LS.get("prefix", "")) {
+        elPrefix.value = defaultPrefixFor(latestRecord.saleDate);
+    }
+    elDue.value = toIsoDate(addDays(elSale.value, 14));
 }
 
 elSale.value = toIsoDate(lastPrev);
@@ -77,7 +123,7 @@ elRate.addEventListener("input", () => {
     }
 });
 
-elPrefix.value = LS.get("prefix", `FV/${currentDate.year()}/`);
+elPrefix.value = LS.get("prefix", defaultPrefixFor(lastPrev));
 elPrefix.addEventListener("input", () => {
     LS.set("prefix", elPrefix.value);
     updateNextNr();
@@ -145,6 +191,7 @@ async function updateNextNr() {
     const prefix = elPrefix.value.trim();
     if (!prefix) {
         elNextNr.value = 1;
+        refresh();
         return;
     }
 
@@ -152,6 +199,7 @@ async function updateNextNr() {
     const savedNumber = parseInt(LS.get("nextNrVal", ""), 10);
     if (savedPrefix === prefix && savedNumber > 0) {
         elNextNr.value = savedNumber;
+        refresh();
         return;
     }
 
@@ -159,6 +207,7 @@ async function updateNextNr() {
     elNextNr.value = nextNumber;
     LS.set("nextNrPrefix", prefix);
     LS.set("nextNrVal", String(nextNumber));
+    refresh();
 }
 
 COMPANIES.forEach(company => {
@@ -491,6 +540,12 @@ function setImportStatus(text, kind = "") {
     elImportStatus.className = `import-status${kind ? ` ${kind}` : ""}`;
 }
 
+function setImportBusy(isBusy) {
+    elImportRun.disabled = isBusy;
+    elImportFilesRun.disabled = isBusy;
+    elImportFiles.disabled = isBusy;
+}
+
 function renderImportResults(items, emptyMessage = "Brak faktur dla wybranego zakresu.") {
     if (!items.length) {
         elImportResults.className = "import-results empty";
@@ -619,7 +674,7 @@ async function runKsefImport() {
         return;
     }
 
-    elImportRun.disabled = true;
+    setImportBusy(true);
     setImportStatus("Startuję import z KSeF...", "busy");
     renderImportResults([], "Trwa pobieranie statusów importu...");
     ksefAccessToken = null;
@@ -713,7 +768,100 @@ async function runKsefImport() {
             </div>`;
         alert(`Import z KSeF nie powiódł się: ${detail}`);
     } finally {
-        elImportRun.disabled = false;
+        setImportBusy(false);
+    }
+}
+
+async function runFileImport() {
+    const files = Array.from(elImportFiles.files || []);
+    if (!files.length) {
+        alert("Wybierz co najmniej jeden plik XML albo ZIP.");
+        return;
+    }
+
+    setImportBusy(true);
+    setImportStatus(`Startuję import z plików (${files.length})...`, "busy");
+    renderImportResults([], "Trwa odczyt plików...");
+    ksefAccessToken = null;
+    retryMetadataById.clear();
+
+    try {
+        const existing = new Set((await idbAll()).map(record => normalizeRecord(record).id));
+        const result = await importInvoicesFromFiles({
+            files,
+            companies: COMPANIES,
+            onProgress: text => setImportStatus(text, "busy")
+        });
+
+        const statuses = [];
+        let importedCount = 0;
+        let failedCount = 0;
+
+        for (const item of result.items) {
+            if (!item.ok) {
+                failedCount += 1;
+                statuses.push({
+                    ok: false,
+                    label: item.label,
+                    state: "błąd",
+                    meta: item.meta || "Plik wejściowy",
+                    message: item.error
+                });
+                continue;
+            }
+
+            try {
+                const alreadyExists = existing.has(item.record.id);
+                await idbPutImport(item.record);
+                importedCount += 1;
+                statuses.push({
+                    ok: true,
+                    label: item.record.nr,
+                    state: alreadyExists ? "aktualizacja" : "zaimportowano",
+                    meta: item.record.ksefNumber || item.label,
+                    message: `${item.record.company} · ${fmtPL(item.record.brutto)} zł brutto`
+                });
+            } catch (error) {
+                failedCount += 1;
+                statuses.push({
+                    ok: false,
+                    label: item.label,
+                    state: "błąd",
+                    meta: item.record.ksefNumber || item.record.nr,
+                    message: `Błąd zapisu do IndexedDB: ${error.message || error}`
+                });
+            }
+        }
+
+        renderImportResults(statuses, "Nie znaleziono żadnych poprawnych XML-i do importu.");
+        if (failedCount) {
+            setImportStatus(`Import plików zakończony częściowo: ${importedCount} OK, ${failedCount} błędów.`, importedCount ? "ok" : "fail");
+        } else if (!result.items.length) {
+            setImportStatus("Nie znaleziono XML-i do importu.", "fail");
+        } else {
+            setImportStatus(`Import plików zakończony sukcesem: ${importedCount} faktur.`, "ok");
+        }
+        elImportFiles.value = "";
+        await renderRegister();
+        await checkPeriodStatus();
+        refresh();
+        alert(failedCount ? `Import plików zakończony częściowo. Sukces: ${importedCount}, błędy: ${failedCount}.` : `Import plików zakończony sukcesem. Zaimportowano ${importedCount} faktur.`);
+    } catch (error) {
+        const detail = error?.message || String(error);
+        console.error("Import plików nie powiódł się:", error);
+        setImportStatus(`Import plików nieudany: ${detail}`, "fail");
+        elImportResults.className = "import-results";
+        elImportResults.innerHTML = `
+            <div class="import-result fail">
+                <div class="import-result-head">
+                    <strong>Błąd importu plików</strong>
+                    <span class="import-result-state">nieudane</span>
+                </div>
+                <div class="import-result-msg">${detail}</div>
+            </div>`;
+        alert(`Import plików nie powiódł się: ${detail}`);
+    } finally {
+        setImportBusy(false);
     }
 }
 
@@ -770,6 +918,7 @@ COMPANIES.forEach(company => {
 });
 
 elImportRun.addEventListener("click", runKsefImport);
+elImportFilesRun.addEventListener("click", runFileImport);
 
 document.getElementById("dl-all").addEventListener("click", () => {
     Object.values(approved).forEach((record, index) => {
@@ -783,9 +932,11 @@ document.getElementById("dl-all").addEventListener("click", () => {
 checkSellerComplete();
 
 openDb().then(() => {
-    refresh();
-    updateNextNr();
-    checkPeriodStatus();
+    return initializeIssuePeriod();
+}).then(() => {
+    return updateNextNr();
+}).then(() => {
+    return checkPeriodStatus();
 }).catch(error => {
     alert("IndexedDB niedostępne w tej przeglądarce/trybie: " + error + "\nZatwierdzanie nie będzie działać.");
     refresh();
