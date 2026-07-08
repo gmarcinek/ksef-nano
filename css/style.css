@@ -103,7 +103,7 @@ header h1 span {
 }
 
 nav {
-    display: grid;
+    display: flex;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0;
     width: 100%;
@@ -460,6 +460,17 @@ tfoot td {
 .src-badge.ksef {
     border-color: var(--stamp);
     color: var(--stamp)
+}
+
+.src-badge.generated {
+    border-color: var(--ok);
+    color: var(--ok)
+}
+
+.src-badge.file {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: #fff
 }
 
 .ksef-meta {
@@ -874,6 +885,7 @@ nav button .badge {
     }
 
     nav {
+        display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         border-top: 1px solid var(--line-soft)
     }

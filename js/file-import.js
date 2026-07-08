@@ -1,4 +1,4 @@
-import { parseImportedInvoiceXml } from "./ksef.js?v=20260709a";
+import { parseImportedInvoiceXml } from "./ksef.js?v=20260709b";
 
 let zipModulePromise = null;
 
@@ -87,7 +87,7 @@ export async function importInvoicesFromFiles({ files, companies, onProgress }) 
         onProgress?.(`Przetwarzam plik ${index + 1}/${queue.length}: ${entry.label}`);
         try {
             const xml = await entry.read();
-            const record = parseImportedInvoiceXml(xml, companies);
+            const record = parseImportedInvoiceXml(xml, companies, { source: "import-file" });
             items.push({
                 ok: true,
                 label: entry.label,

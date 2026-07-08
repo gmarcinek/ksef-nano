@@ -3,8 +3,8 @@ import { LS, openDb, idbPut, idbPutImport, idbAll, idbDel } from "./db.js?v=2026
 import { calc, fmtPL } from "./calc.js";
 import { buildXml, download, fname } from "./xml.js";
 import { addDays, dayjs, formatPeriodLabel, lastDayPrevMonth, toIsoDate, today } from "./dayjs.js";
-import { importIssuedInvoices, fetchInvoiceRecord } from "./ksef.js?v=20260709a";
-import { importInvoicesFromFiles } from "./file-import.js?v=20260709a";
+import { importIssuedInvoices, fetchInvoiceRecord } from "./ksef.js?v=20260709b";
+import { importInvoicesFromFiles } from "./file-import.js?v=20260709b";
 
 const currentDate = today();
 const lastPrev = lastDayPrevMonth(currentDate);
@@ -60,6 +60,19 @@ function normalizeRecord(record) {
 
 function defaultPrefixFor(dateValue) {
     return `FV/${dayjs(dateValue).year()}/`;
+}
+
+function sourceBadgeMarkup(source) {
+    if (source === "local") {
+        return '<span class="src-badge generated">[WYGENEROWANA PRO FORMA]</span>';
+    }
+    if (source === "import-file") {
+        return '<span class="src-badge file">[IMPORT FILE]</span>';
+    }
+    if (source === "ksef" || source === "ksef-api") {
+        return '<span class="src-badge ksef">[KSEF API]</span>';
+    }
+    return "";
 }
 
 function parseNumberSuffix(nr, prefix) {
@@ -388,7 +401,7 @@ function refresh() {
             }
             const displayNumber = Number.parseInt(invoiceInput.value, 10);
             nrEl.textContent = prefix && Number.isInteger(displayNumber) && displayNumber > 0
-                ? "FV " + prefix + displayNumber
+                ? "" + prefix + displayNumber
                 : "FV — (ustaw prefiks i numer)";
             if (Number.isInteger(rollingNumber) && rollingNumber > 0) {
                 rollingNumber += 1;
@@ -571,7 +584,7 @@ async function renderRegister() {
         th += record.hoursCent;
         tn += record.netto;
         tb += record.brutto;
-        const sourceBadge = record.source === "ksef" ? '<span class="src-badge ksef">KSeF</span>' : "";
+        const sourceBadge = sourceBadgeMarkup(record.source);
         const meta = record.ksefNumber ? `<span class="ksef-meta">KSeF: ${record.ksefNumber}</span>` : "";
         return `<tr>
             <td><b>${record.nr}</b>${sourceBadge}${meta}</td>

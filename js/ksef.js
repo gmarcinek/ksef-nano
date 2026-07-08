@@ -296,7 +296,7 @@ function parseImportedInvoice(xml, metadata = {}, companies) {
 
     return {
         id: `ksef:${ksefNumber || invoiceHash}`,
-        source: "ksef",
+        source: metadata.source || "ksef-api",
         nr: invoiceNumber,
         key: companyMatch?.key || "",
         tag: companyMatch?.tag || "KSeF",
