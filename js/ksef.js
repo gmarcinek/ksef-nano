@@ -297,13 +297,12 @@ function parseImportedInvoice(xml, metadata, companies) {
     };
 }
 
-async function queryIssuedMetadata(accessToken, contextNip, from, to) {
+async function queryIssuedMetadata(accessToken, from, to) {
     return ksefFetch("/invoices/query/metadata?sortOrder=Desc&pageOffset=0&pageSize=10", {
         method: "POST",
         bearer: accessToken,
         body: JSON.stringify({
             subjectType: "Subject1",
-            sellerNip: contextNip,
             dateRange: {
                 dateType: "Issue",
                 from: toKsefDateStart(from),
@@ -323,7 +322,7 @@ async function downloadInvoiceXml(accessToken, ksefNumber) {
 export async function importIssuedInvoices({ token, contextNip, from, to, companies, onProgress }) {
     const accessToken = await authenticateWithToken(token, contextNip, onProgress);
     onProgress?.("Pobieram metadane wystawionych faktur...");
-    const metadataResponse = await queryIssuedMetadata(accessToken, contextNip, from, to);
+    const metadataResponse = await queryIssuedMetadata(accessToken, from, to);
     const metadataItems = metadataResponse.invoices || [];
     const items = [];
 

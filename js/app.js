@@ -2,8 +2,8 @@ import { COMPANIES, BUYER_ADDR } from "./data.js";
 import { LS, openDb, idbPut, idbPutImport, idbAll, idbAllLocal, idbDel } from "./db.js?v=20260708a";
 import { calc, fmtPL } from "./calc.js";
 import { buildXml, download, fname } from "./xml.js";
-import { addDays, formatPeriodLabel, lastDayPrevMonth, toIsoDate, today } from "./dayjs.js";
-import { importIssuedInvoices } from "./ksef.js?v=20260708e";
+import { addDays, dayjs, formatPeriodLabel, lastDayPrevMonth, toIsoDate, today } from "./dayjs.js";
+import { importIssuedInvoices } from "./ksef.js?v=20260708f";
 
 const currentDate = today();
 const lastPrev = lastDayPrevMonth(currentDate);
@@ -526,6 +526,10 @@ async function runKsefImport() {
     }
     if (elImportFrom.value > elImportTo.value) {
         alert("Data początkowa importu nie może być późniejsza niż końcowa.");
+        return;
+    }
+    if (dayjs(elImportTo.value).isAfter(dayjs(elImportFrom.value).add(3, "month"))) {
+        alert("Zakres importu nie może przekraczać 3 miesięcy (limit KSeF).");
         return;
     }
 
