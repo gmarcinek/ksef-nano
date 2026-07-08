@@ -1,5 +1,5 @@
 import { COMPANIES, BUYER_ADDR } from "./data.js";
-import { LS, openDb, idbPut, idbPutImport, idbAll, idbAllLocal, idbDel } from "./db.js?v=20260708a";
+import { LS, openDb, idbPut, idbPutImport, idbAll, idbDel } from "./db.js?v=20260708a";
 import { calc, fmtPL } from "./calc.js";
 import { buildXml, download, fname } from "./xml.js";
 import { addDays, dayjs, formatPeriodLabel, lastDayPrevMonth, toIsoDate, today } from "./dayjs.js";
@@ -15,7 +15,6 @@ const elIssue = document.getElementById("g-issue");
 const elDue = document.getElementById("g-due");
 const elRate = document.getElementById("g-rate");
 const elPrefix = document.getElementById("g-prefix");
-const elNextNr = document.getElementById("g-nextnr");
 
 const tabIssue = document.getElementById("tab-issue");
 const tabReg = document.getElementById("tab-register");
@@ -45,6 +44,11 @@ const colsEl = document.getElementById("view-issue");
 
 let ksefAccessToken = null;
 const retryMetadataById = new Map();
+let numberingState = {
+    prefix: "",
+    existingNumbers: new Set(),
+    nextNumber: 1
+};
 
 function normalizeRecord(record) {
     return {
@@ -56,6 +60,75 @@ function normalizeRecord(record) {
 
 function defaultPrefixFor(dateValue) {
     return `FV/${dayjs(dateValue).year()}/`;
+}
+
+function parseNumberSuffix(nr, prefix) {
+    if (!nr || !prefix || !nr.startsWith(prefix)) {
+        return null;
+    }
+    const value = Number.parseInt(nr.slice(prefix.length), 10);
+    return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+async function loadNumberingState(prefix) {
+    if (!prefix) {
+        return {
+            prefix: "",
+            existingNumbers: new Set(),
+            nextNumber: 1
+        };
+    }
+
+    const all = await idbAll();
+    const numbers = all
+        .map(record => parseNumberSuffix(normalizeRecord(record).nr, prefix))
+        .filter(number => Number.isInteger(number));
+
+    return {
+        prefix,
+        existingNumbers: new Set(numbers),
+        nextNumber: numbers.length ? Math.max(...numbers) + 1 : 1
+    };
+}
+
+function validateNextNrInput() {
+    return true;
+}
+
+function getInvoiceNumberInput(companyKey) {
+    return document.getElementById("fvn-" + companyKey);
+}
+
+function validateCompanyInvoiceNumber(company, options = {}) {
+    const input = getInvoiceNumberInput(company.key);
+    if (!input || input.disabled) {
+        return true;
+    }
+
+    const prefix = elPrefix.value.trim();
+    const rawValue = input.value.trim();
+    const number = Number.parseInt(rawValue, 10);
+    const expected = Number.parseInt(input.dataset.expectedNumber || "", 10);
+    let message = "";
+
+    if (!prefix) {
+        message = "Podaj prefiks numeru FV w nagłówku.";
+    } else if (!rawValue) {
+        message = "Wpisz numer FV.";
+    } else if (!Number.isInteger(number) || number < 1) {
+        message = "Numer FV musi być dodatnią liczbą całkowitą.";
+    } else if (numberingState.prefix === prefix && numberingState.existingNumbers.has(number)) {
+        message = `Numer ${prefix}${number} już jest w bazie.`;
+    } else if (Number.isInteger(expected) && number !== expected) {
+        message = `Dla tej kolumny oczekiwany jest numer ${prefix}${expected}.`;
+    }
+
+    input.setCustomValidity(message);
+    input.title = message;
+    if (message && options.report) {
+        input.reportValidity();
+    }
+    return !message;
 }
 
 async function initializeIssuePeriod() {
@@ -129,15 +202,6 @@ elPrefix.addEventListener("input", () => {
     updateNextNr();
 });
 
-elNextNr.addEventListener("change", () => {
-    const prefix = elPrefix.value.trim();
-    const nextNumber = elNextNr.value;
-    if (prefix && nextNumber) {
-        LS.set("nextNrPrefix", prefix);
-        LS.set("nextNrVal", nextNumber);
-    }
-});
-
 function getSeller() {
     return {
         name: LS.get("sellerName", "").trim(),
@@ -171,42 +235,28 @@ function showTab(active) {
     viewSettings.classList.toggle("show", active === tabSettings);
 }
 
-async function computeNextNr(prefix) {
-    try {
-        const all = await idbAllLocal();
-        const numbers = all
-            .filter(record => record.nr.startsWith(prefix))
-            .map(record => {
-                const number = parseInt(record.nr.slice(prefix.length), 10);
-                return Number.isNaN(number) ? NaN : number;
-            })
-            .filter(number => !Number.isNaN(number));
-        return numbers.length ? Math.max(...numbers) + 1 : 1;
-    } catch {
-        return 1;
-    }
-}
-
 async function updateNextNr() {
     const prefix = elPrefix.value.trim();
     if (!prefix) {
-        elNextNr.value = 1;
+        numberingState = {
+            prefix: "",
+            existingNumbers: new Set(),
+            nextNumber: 1
+        };
         refresh();
         return;
     }
 
-    const savedPrefix = LS.get("nextNrPrefix", "");
-    const savedNumber = parseInt(LS.get("nextNrVal", ""), 10);
-    if (savedPrefix === prefix && savedNumber > 0) {
-        elNextNr.value = savedNumber;
-        refresh();
-        return;
+    try {
+        numberingState = await loadNumberingState(prefix);
+    } catch {
+        numberingState = {
+            prefix,
+            existingNumbers: new Set(),
+            nextNumber: 1
+        };
     }
 
-    const nextNumber = await computeNextNr(prefix);
-    elNextNr.value = nextNumber;
-    LS.set("nextNrPrefix", prefix);
-    LS.set("nextNrVal", String(nextNumber));
     refresh();
 }
 
@@ -218,6 +268,10 @@ COMPANIES.forEach(company => {
         <h2>Nationale-Nederlanden<br>${company.short}</h2>
         <div class="entity">NIP ${company.nip}<br>${BUYER_ADDR}</div>
         <div class="fv-nr" id="nr-${company.key}">FV —</div>
+        <div class="field fv-number-field">
+            <label for="fvn-${company.key}">Numer FV</label>
+            <input id="fvn-${company.key}" type="number" min="1" required inputmode="numeric">
+        </div>
         <div class="period-status" id="ps-${company.key}"></div>
         <div class="field">
             <label for="h-${company.key}">Godziny</label>
@@ -245,6 +299,13 @@ COMPANIES.forEach(company => {
     }
     hoursInput.addEventListener("input", () => LS.set("draft." + company.key, hoursInput.value));
     document.getElementById("z-" + company.key).addEventListener("input", event => LS.set("zam." + company.key, event.target.value));
+    const invoiceInput = getInvoiceNumberInput(company.key);
+    invoiceInput.addEventListener("input", () => {
+        const expected = invoiceInput.dataset.expectedNumber || "";
+        invoiceInput.dataset.manual = invoiceInput.value.trim() && invoiceInput.value.trim() !== expected ? "1" : "0";
+        validateCompanyInvoiceNumber(company);
+    });
+    invoiceInput.addEventListener("change", () => validateCompanyInvoiceNumber(company));
 });
 
 function colState(company) {
@@ -264,7 +325,9 @@ function refresh() {
     let tv = 0;
     let tb = 0;
     let anyApproved = false;
-    let nonApprovedIdx = 0;
+    const prefix = elPrefix.value.trim();
+    const periodKey = `${prefix}|${elSale.value.slice(0, 7)}`;
+    let rollingNumber = numberingState.prefix === prefix ? numberingState.nextNumber : null;
 
     COMPANIES.forEach(company => {
         const record = approved[company.key];
@@ -272,6 +335,7 @@ function refresh() {
             ? { hoursCent: record.hoursCent, netto: record.netto, vat: record.vat, brutto: record.brutto }
             : colState(company);
         const nrEl = document.getElementById("nr-" + company.key);
+        const invoiceInput = getInvoiceNumberInput(company.key);
         const approveButton = document.getElementById("ap-" + company.key);
         const downloadButton = document.getElementById("dl-" + company.key);
 
@@ -295,18 +359,41 @@ function refresh() {
 
         if (record) {
             nrEl.textContent = "FV " + record.nr;
+            const assignedNumber = parseNumberSuffix(record.nr, prefix);
+            if (assignedNumber) {
+                rollingNumber = assignedNumber + 1;
+            }
+            invoiceInput.value = assignedNumber || "";
+            invoiceInput.dataset.expectedNumber = assignedNumber || "";
+            invoiceInput.dataset.manual = "0";
+            invoiceInput.dataset.periodKey = periodKey;
+            invoiceInput.disabled = true;
+            invoiceInput.setCustomValidity("");
+            invoiceInput.title = "";
             approveButton.disabled = true;
             approveButton.classList.add("done");
             approveButton.textContent = record.source === "ksef" ? "Jest w KSeF ✓" : "Zatwierdzona ✓";
             downloadButton.disabled = false;
             anyApproved = true;
         } else {
-            const prefix = elPrefix.value.trim();
-            const nextNumber = parseInt(elNextNr.value, 10);
-            nrEl.textContent = prefix && nextNumber > 0
-                ? "FV " + prefix + (nextNumber + nonApprovedIdx)
+            if (invoiceInput.dataset.periodKey !== periodKey) {
+                invoiceInput.value = "";
+                invoiceInput.dataset.manual = "0";
+                invoiceInput.dataset.periodKey = periodKey;
+            }
+            invoiceInput.disabled = false;
+            invoiceInput.dataset.expectedNumber = Number.isInteger(rollingNumber) && rollingNumber > 0 ? String(rollingNumber) : "";
+            if (invoiceInput.dataset.manual !== "1") {
+                invoiceInput.value = invoiceInput.dataset.expectedNumber;
+            }
+            const displayNumber = Number.parseInt(invoiceInput.value, 10);
+            nrEl.textContent = prefix && Number.isInteger(displayNumber) && displayNumber > 0
+                ? "FV " + prefix + displayNumber
                 : "FV — (ustaw prefiks i numer)";
-            nonApprovedIdx += 1;
+            if (Number.isInteger(rollingNumber) && rollingNumber > 0) {
+                rollingNumber += 1;
+            }
+            validateCompanyInvoiceNumber(company);
             approveButton.disabled = !state;
             approveButton.classList.remove("done");
             approveButton.textContent = "Zatwierdź";
@@ -351,11 +438,11 @@ async function approve(company) {
         return;
     }
 
-    const nextNumber = parseInt(elNextNr.value, 10);
-    if (!nextNumber || nextNumber < 1) {
-        alert("Podaj poprawny numer FV w nagłówku.");
+    if (!validateCompanyInvoiceNumber(company, { report: true })) {
         return;
     }
+
+    const nextNumber = parseInt(getInvoiceNumberInput(company.key).value, 10);
 
     const nr = prefix + nextNumber;
     const record = {
@@ -387,12 +474,11 @@ async function approve(company) {
     }
 
     approved[company.key] = record;
-    elNextNr.value = nextNumber + 1;
-    LS.set("nextNrPrefix", prefix);
-    LS.set("nextNrVal", String(nextNumber + 1));
     LS.del("draft." + company.key);
     document.getElementById("h-" + company.key).disabled = true;
-    checkPeriodStatus();
+    getInvoiceNumberInput(company.key).dataset.manual = "0";
+    await updateNextNr();
+    await checkPeriodStatus();
     refresh();
 }
 
@@ -529,6 +615,7 @@ async function renderRegister() {
         if (approved[record.key] && approved[record.key].id === record.id) {
             delete approved[record.key];
         }
+        await updateNextNr();
         renderRegister();
         refresh();
         checkPeriodStatus();
@@ -621,6 +708,7 @@ async function handleRetryClick(button) {
         }
         button.remove();
         await renderRegister();
+        await updateNextNr();
         await checkPeriodStatus();
         refresh();
     } catch (error) {
@@ -750,6 +838,7 @@ async function runKsefImport() {
         }
         elImportToken.value = "";
         await renderRegister();
+        await updateNextNr();
         await checkPeriodStatus();
         refresh();
         alert(failedCount ? `Import zakończony częściowo. Sukces: ${importedCount}, błędy: ${failedCount}.` : `Import zakończony sukcesem. Zaimportowano ${importedCount} faktur.`);
@@ -843,6 +932,7 @@ async function runFileImport() {
         }
         elImportFiles.value = "";
         await renderRegister();
+        await updateNextNr();
         await checkPeriodStatus();
         refresh();
         alert(failedCount ? `Import plików zakończony częściowo. Sukces: ${importedCount}, błędy: ${failedCount}.` : `Import plików zakończony sukcesem. Zaimportowano ${importedCount} faktur.`);
